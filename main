@@ -276,38 +276,18 @@ export default function MegaMenu(props: MegaMenuProps) {
         isMobile || isTablet || (isDesktop && showHamburgerOnDesktop)
     const showMenu = !showHamburger || isOpen
 
-    // Robust navigation: lets the anchor's natural href handle routing,
-    // which works correctly in both Framer preview and published environments.
-    // Falls back to window.location only for absolute/special URLs where
-    // preventDefault + href assignment is required.
-    const navigate = useCallback(
-        (link: string) => {
-            if (!link || link === "#") return
-            const trimmed = String(link).trim()
-            if (!trimmed || trimmed === "#") return
+    // Prefer native anchor navigation in Framer so preview, staging,
+    // and published environments all resolve links consistently.
+    const normalizeHref = useCallback((link?: string) => {
+        const trimmed = (link ?? "").trim()
+        return trimmed || "#"
+    }, [])
 
-            // Close mobile menu first
-            if (showHamburger) {
-                setIsOpen(false)
-                setActiveSubmenu(null)
-            }
-
-            const isAbsolute = /^https?:\/\//i.test(trimmed)
-            const isSpecial = /^(mailto:|tel:|sms:)/i.test(trimmed)
-
-            if (isAbsolute || isSpecial) {
-                window.open(trimmed, isAbsolute ? "_blank" : "_self")
-                return
-            }
-
-            // For internal paths, use window.location.href rather than assign.
-            // This is the most universally compatible method across Framer
-            // preview iframes and published deployments.
-            const path = trimmed.startsWith("/") ? trimmed : `/${trimmed}`
-            window.location.href = path
-        },
-        [showHamburger]
-    )
+    const closeMenuOnNavigate = useCallback(() => {
+        if (!showHamburger) return
+        setIsOpen(false)
+        setActiveSubmenu(null)
+    }, [showHamburger])
 
     // Reset state on mount
     useEffect(() => {
@@ -401,8 +381,6 @@ export default function MegaMenu(props: MegaMenuProps) {
             startTransition(() =>
                 setActiveSubmenu(activeSubmenu === index ? null : index)
             )
-        } else {
-            navigate(menuItems[index].link)
         }
     }
 
@@ -681,11 +659,8 @@ export default function MegaMenu(props: MegaMenuProps) {
                     }}
                 >
                     <a
-                        href={logoLink || "/"}
-                        onClick={(e) => {
-                            e.preventDefault()
-                            navigate(logoLink)
-                        }}
+                        href={normalizeHref(logoLink || "/")}
+                        onClick={closeMenuOnNavigate}
                         aria-label={`${logoImage.alt || "Home"} - Go to homepage`}
                         style={{ cursor: "pointer" }}
                     >
@@ -832,11 +807,8 @@ export default function MegaMenu(props: MegaMenuProps) {
                                             </button>
                                         ) : (
                                             <a
-                                                href={item.link || "#"}
-                                                onClick={(e) => {
-                                                    e.preventDefault()
-                                                    navigate(item.link)
-                                                }}
+                                                href={normalizeHref(item.link)}
+                                                onClick={closeMenuOnNavigate}
                                                 onFocus={() =>
                                                     startTransition(() =>
                                                         setFocusedPrimaryIndex(
@@ -918,18 +890,10 @@ export default function MegaMenu(props: MegaMenuProps) {
                                                                     role="none"
                                                                 >
                                                                     <a
-                                                                        href={
-                                                                            subItem.link ||
-                                                                            "#"
-                                                                        }
-                                                                        onClick={(
-                                                                            e
-                                                                        ) => {
-                                                                            e.preventDefault()
-                                                                            navigate(
-                                                                                subItem.link
-                                                                            )
-                                                                        }}
+                                                                        href={normalizeHref(
+                                                                            subItem.link
+                                                                        )}
+                                                                        onClick={closeMenuOnNavigate}
                                                                         onMouseEnter={() =>
                                                                             startTransition(
                                                                                 () =>
@@ -1172,13 +1136,8 @@ export default function MegaMenu(props: MegaMenuProps) {
                                             </button>
                                         ) : (
                                             <a
-                                                href={item.link || "#"}
-                                                onClick={(e) => {
-                                                    e.preventDefault()
-                                                    handlePrimaryMenuClick(
-                                                        index
-                                                    )
-                                                }}
+                                                href={normalizeHref(item.link)}
+                                                onClick={closeMenuOnNavigate}
                                                 onMouseEnter={() =>
                                                     startTransition(() =>
                                                         setHoveredPrimaryIndex(
@@ -1297,16 +1256,10 @@ export default function MegaMenu(props: MegaMenuProps) {
                                                         role="none"
                                                     >
                                                         <a
-                                                            href={
-                                                                subItem.link ||
-                                                                "#"
-                                                            }
-                                                            onClick={(e) => {
-                                                                e.preventDefault()
-                                                                navigate(
-                                                                    subItem.link
-                                                                )
-                                                            }}
+                                                            href={normalizeHref(
+                                                                subItem.link
+                                                            )}
+                                                            onClick={closeMenuOnNavigate}
                                                             onMouseEnter={() =>
                                                                 startTransition(
                                                                     () =>
