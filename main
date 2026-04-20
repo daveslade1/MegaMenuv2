@@ -278,10 +278,39 @@ export default function MegaMenu(props: MegaMenuProps) {
 
     // Prefer native anchor navigation in Framer so preview, staging,
     // and published environments all resolve links consistently.
-    const normalizeHref = useCallback((link?: string) => {
-        const trimmed = (link ?? "").trim()
-        return trimmed || "#"
+    // Also normalize Link-control values that may come through as objects.
+    const extractHref = useCallback((link: unknown): string => {
+        if (typeof link === "string") return link.trim()
+
+        if (link && typeof link === "object") {
+            const record = link as Record<string, unknown>
+            const candidate =
+                record.href ?? record.url ?? record.path ?? record.link
+            if (typeof candidate === "string") return candidate.trim()
+        }
+
+        return ""
     }, [])
+
+    const normalizeHref = useCallback(
+        (link: unknown) => {
+            const href = extractHref(link)
+            if (!href) return "#"
+
+            // Keep absolute/special/hash/query/relative-dot links untouched.
+            if (
+                /^(https?:\/\/|mailto:|tel:|sms:|#|\?|\/|\.\/|\.\.\/)/i.test(
+                    href
+                )
+            ) {
+                return href
+            }
+
+            // For plain slugs like "about", make root-relative.
+            return `/${href}`
+        },
+        [extractHref]
+    )
 
     const closeMenuOnNavigate = useCallback(() => {
         if (!showHamburger) return
