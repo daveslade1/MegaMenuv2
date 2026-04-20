@@ -1,0 +1,1748 @@
+// Mega menu navigation component with hamburger toggle, logo, primary menu items, and submenu dropdowns
+import {
+    useState,
+    startTransition,
+    type CSSProperties,
+    useEffect,
+    useCallback,
+} from "react"
+import { addPropertyControls, ControlType } from "framer"
+
+interface MenuItem {
+    text: string
+    link: string
+    hasSubmenu: boolean
+    submenuItems: SubmenuItem[]
+}
+
+interface SubmenuItem {
+    text: string
+    link: string
+}
+
+interface HamburgerButtonProps {
+    isOpen: boolean
+    toggleMenu: () => void
+    hamburgerSize: number
+    hamburgerLineWidth: number
+    hamburgerColor: string
+    topLineOffset: number
+    bottomLineOffset: number
+    order?: number
+}
+
+interface MegaMenuProps {
+    logoImage: { src: string; alt: string }
+    logoLink: string
+    logoWidth: number
+    logoPosition: "left" | "center"
+    hamburgerPosition: "left" | "right"
+    hamburgerColor: string
+    hamburgerSize: 16 | 24 | 32
+    hamburgerLineWidth: 1 | 2
+    backgroundColor: string
+    useGlassEffect: boolean
+    containerPadding: string
+    menuItems: MenuItem[]
+    primaryMenuFont: any
+    primaryMenuBackground: string
+    primaryMenuHoverBackground: string
+    primaryMenuColor: string
+    primaryMenuHoverColor: string
+    primaryMenuPadding: string
+    submenuFont: any
+    submenuBackground: string
+    submenuHoverBackground: string
+    submenuColor: string
+    submenuHoverColor: string
+    submenuPadding: string
+    showHamburgerOnDesktop: boolean
+    scrollBehavior: "none" | "hide" | "showOnScrollUp" | "sticky" | "shrink"
+    showDividers: boolean
+    dividerWidth: number
+    dividerColorMode: "light" | "dark"
+    dividerOpacity: number
+    modalOverlayOpacity: number
+    easingCurve: "smooth" | "bounce" | "elastic" | "sharp" | "linear"
+    animationDuration: number
+    style?: CSSProperties
+}
+
+// Easing curve lookup
+const EASING_CURVES: Record<string, string> = {
+    smooth: "cubic-bezier(0.34, 1.56, 0.64, 1)",
+    bounce: "cubic-bezier(0.68, -0.55, 0.265, 1.55)",
+    elastic: "cubic-bezier(0.175, 0.885, 0.32, 1.275)",
+    sharp: "cubic-bezier(0.4, 0, 0.2, 1)",
+    linear: "linear",
+}
+
+// Extracted hamburger button component
+function HamburgerButton({
+    isOpen,
+    toggleMenu,
+    hamburgerSize,
+    hamburgerLineWidth,
+    hamburgerColor,
+    topLineOffset,
+    bottomLineOffset,
+    order = 0,
+}: HamburgerButtonProps) {
+    const lineBase: CSSProperties = {
+        width: `${hamburgerSize}px`,
+        height: `${hamburgerLineWidth}px`,
+        backgroundColor: hamburgerColor,
+        position: "absolute",
+        left: `-${hamburgerSize / 2}px`,
+    }
+
+    return (
+        <button
+            onClick={toggleMenu}
+            style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                padding: 8,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                order,
+                width: `${hamburgerSize + 16}px`,
+                height: `${hamburgerSize + 16}px`,
+                position: "relative",
+                flexShrink: 0,
+            }}
+            aria-label={isOpen ? "Close menu" : "Open menu"}
+            aria-expanded={isOpen}
+            aria-controls="main-navigation"
+        >
+            {/* Hamburger lines */}
+            <div
+                style={{
+                    position: "absolute",
+                    top: "50%",
+                    left: "50%",
+                    transform: "translate(-50%, -50%)",
+                    opacity: isOpen ? 0 : 1,
+                    transition: "opacity 0.3s ease",
+                }}
+                aria-hidden="true"
+            >
+                <div style={{ ...lineBase, top: `${topLineOffset}px` }} />
+                <div
+                    style={{
+                        ...lineBase,
+                        top: `-${hamburgerLineWidth / 2}px`,
+                    }}
+                />
+                <div style={{ ...lineBase, top: `${bottomLineOffset}px` }} />
+            </div>
+
+            {/* X icon */}
+            <div
+                style={{
+                    position: "absolute",
+                    top: "50%",
+                    left: "50%",
+                    transform: "translate(-50%, -50%)",
+                    opacity: isOpen ? 1 : 0,
+                    transition: "opacity 0.3s ease",
+                }}
+                aria-hidden="true"
+            >
+                <div
+                    style={{
+                        ...lineBase,
+                        top: `-${hamburgerLineWidth / 2}px`,
+                        transform: "rotate(45deg)",
+                        transformOrigin: "center",
+                    }}
+                />
+                <div
+                    style={{
+                        ...lineBase,
+                        top: `-${hamburgerLineWidth / 2}px`,
+                        transform: "rotate(-45deg)",
+                        transformOrigin: "center",
+                    }}
+                />
+            </div>
+        </button>
+    )
+}
+
+/**
+ * @framerSupportedLayoutWidth any-prefer-fixed
+ * @framerSupportedLayoutHeight auto
+ */
+export default function MegaMenu(props: MegaMenuProps) {
+    const {
+        logoImage = {
+            src: "[framerusercontent.com](https://framerusercontent.com/images/GfGkADagM4KEibNcIiRUWlfrR0.jpg)",
+            alt: "Logo",
+        },
+        logoLink = "/",
+        logoWidth = 150,
+        logoPosition = "left",
+        hamburgerPosition = "right",
+        hamburgerColor = "#000000",
+        hamburgerSize = 24,
+        hamburgerLineWidth = 2,
+        backgroundColor = "#FFFFFF",
+        useGlassEffect = false,
+        containerPadding = "16px 48px",
+        menuItems = [
+            {
+                text: "Products",
+                link: "/products",
+                hasSubmenu: true,
+                submenuItems: [
+                    { text: "Product 1", link: "/products/1" },
+                    { text: "Product 2", link: "/products/2" },
+                ],
+            },
+            {
+                text: "About",
+                link: "/about",
+                hasSubmenu: false,
+                submenuItems: [],
+            },
+            {
+                text: "Contact",
+                link: "/contact",
+                hasSubmenu: false,
+                submenuItems: [],
+            },
+        ],
+        primaryMenuFont,
+        primaryMenuBackground = "#EEEEEE",
+        primaryMenuHoverBackground = "#000000",
+        primaryMenuColor = "#000000",
+        primaryMenuHoverColor = "#FFFFFF",
+        primaryMenuPadding = "16px",
+        submenuFont,
+        submenuBackground = "#F5F5F5",
+        submenuHoverBackground = "#CCCCCC",
+        submenuColor = "#000000",
+        submenuHoverColor = "#000000",
+        submenuPadding = "16px",
+        showHamburgerOnDesktop = false,
+        scrollBehavior = "none",
+        showDividers = false,
+        dividerWidth = 1,
+        dividerColorMode = "light",
+        dividerOpacity = 0.2,
+        modalOverlayOpacity = 0.8,
+        easingCurve = "smooth",
+        animationDuration = 0.4,
+    } = props
+
+    const [isOpen, setIsOpen] = useState(false)
+    const [activeSubmenu, setActiveSubmenu] = useState<number | null>(null)
+    const [hoveredPrimaryIndex, setHoveredPrimaryIndex] = useState<
+        number | null
+    >(null)
+    const [hoveredSubmenuIndex, setHoveredSubmenuIndex] = useState<
+        number | null
+    >(null)
+    const [filterId] = useState(
+        `glass-filter-${Math.random().toString(36).substr(2, 9)}`
+    )
+    const [isSafari, setIsSafari] = useState(false)
+    const [focusedPrimaryIndex, setFocusedPrimaryIndex] = useState<
+        number | null
+    >(null)
+    const [focusedSubmenuIndex, setFocusedSubmenuIndex] = useState<
+        number | null
+    >(null)
+
+    const desktopBreakpoint = 1024
+    const tabletBreakpoint = 768
+
+    const [windowWidth, setWindowWidth] = useState(
+        typeof window !== "undefined" ? window.innerWidth : desktopBreakpoint
+    )
+    const [lastScrollY, setLastScrollY] = useState(0)
+    const [isScrollingUp, setIsScrollingUp] = useState(false)
+    const [hasScrolled, setHasScrolled] = useState(false)
+
+    const isMobile = windowWidth < tabletBreakpoint
+    const isTablet =
+        windowWidth >= tabletBreakpoint && windowWidth < desktopBreakpoint
+    const isDesktop = windowWidth >= desktopBreakpoint
+
+    const showHamburger =
+        isMobile || isTablet || (isDesktop && showHamburgerOnDesktop)
+    const showMenu = !showHamburger || isOpen
+
+    // Robust navigation: lets the anchor's natural href handle routing,
+    // which works correctly in both Framer preview and published environments.
+    // Falls back to window.location only for absolute/special URLs where
+    // preventDefault + href assignment is required.
+    const navigate = useCallback(
+        (link: string) => {
+            if (!link || link === "#") return
+            const trimmed = String(link).trim()
+            if (!trimmed || trimmed === "#") return
+
+            // Close mobile menu first
+            if (showHamburger) {
+                setIsOpen(false)
+                setActiveSubmenu(null)
+            }
+
+            const isAbsolute = /^https?:\/\//i.test(trimmed)
+            const isSpecial = /^(mailto:|tel:|sms:)/i.test(trimmed)
+
+            if (isAbsolute || isSpecial) {
+                window.open(trimmed, isAbsolute ? "_blank" : "_self")
+                return
+            }
+
+            // For internal paths, use window.location.href rather than assign.
+            // This is the most universally compatible method across Framer
+            // preview iframes and published deployments.
+            const path = trimmed.startsWith("/") ? trimmed : `/${trimmed}`
+            window.location.href = path
+        },
+        [showHamburger]
+    )
+
+    // Reset state on mount
+    useEffect(() => {
+        setIsOpen(false)
+        setActiveSubmenu(null)
+        setHoveredPrimaryIndex(null)
+        setHoveredSubmenuIndex(null)
+        setFocusedPrimaryIndex(null)
+        setFocusedSubmenuIndex(null)
+    }, [])
+
+    // Lock body scroll when mobile menu is open
+    useEffect(() => {
+        if (typeof window === "undefined") return
+
+        if (isOpen && showHamburger) {
+            const currentScrollY = window.scrollY
+            document.body.style.overflow = "hidden"
+            document.body.style.position = "fixed"
+            document.body.style.top = `-${currentScrollY}px`
+            document.body.style.width = "100%"
+        } else {
+            const savedTop = document.body.style.top
+            document.body.style.overflow = ""
+            document.body.style.position = ""
+            document.body.style.top = ""
+            document.body.style.width = ""
+            if (savedTop) {
+                window.scrollTo(0, parseInt(savedTop) * -1)
+            }
+        }
+
+        return () => {
+            document.body.style.overflow = ""
+            document.body.style.position = ""
+            document.body.style.top = ""
+            document.body.style.width = ""
+        }
+    }, [isOpen, showHamburger])
+
+    // Scroll tracking
+    useEffect(() => {
+        if (typeof window === "undefined" || scrollBehavior === "none") return
+
+        const handleScroll = () => {
+            const currentScrollY = window.scrollY
+            startTransition(() => {
+                setIsScrollingUp(currentScrollY < lastScrollY)
+                setHasScrolled(currentScrollY > 150)
+                setLastScrollY(currentScrollY)
+            })
+        }
+
+        window.addEventListener("scroll", handleScroll, { passive: true })
+        return () => window.removeEventListener("scroll", handleScroll)
+    }, [lastScrollY, scrollBehavior])
+
+    // Window resize tracking
+    useEffect(() => {
+        if (typeof window === "undefined") return
+
+        const handleResize = () => {
+            startTransition(() => setWindowWidth(window.innerWidth))
+        }
+
+        window.addEventListener("resize", handleResize)
+        return () => window.removeEventListener("resize", handleResize)
+    }, [])
+
+    // Detect Safari for glass effect fallback
+    useEffect(() => {
+        if (typeof window !== "undefined") {
+            setIsSafari(
+                /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
+            )
+        }
+    }, [])
+
+    const toggleMenu = () => {
+        setIsOpen((prev) => {
+            if (prev) setActiveSubmenu(null)
+            return !prev
+        })
+    }
+
+    const handlePrimaryMenuClick = (index: number) => {
+        if (
+            menuItems[index].hasSubmenu &&
+            menuItems[index].submenuItems.length > 0
+        ) {
+            startTransition(() =>
+                setActiveSubmenu(activeSubmenu === index ? null : index)
+            )
+        } else {
+            navigate(menuItems[index].link)
+        }
+    }
+
+    const handleMenuContainerLeave = () => {
+        startTransition(() => setActiveSubmenu(null))
+    }
+
+    const handleSubmenuLeave = () => {
+        startTransition(() => setActiveSubmenu(null))
+    }
+
+    const hasAnySubmenu = menuItems.some(
+        (item) => item.hasSubmenu && item.submenuItems.length > 0
+    )
+
+    const headerOrder =
+        logoPosition === "center" && hamburgerPosition === "left"
+            ? "row-reverse"
+            : "row"
+
+    const logoJustify = logoPosition === "center" ? "center" : "flex-start"
+
+    const easingFunction = EASING_CURVES[easingCurve] ?? EASING_CURVES.smooth
+    const transitionStyle = `all ${animationDuration}s ${easingFunction}`
+
+    const getScrollStyles = (): CSSProperties => {
+        if (scrollBehavior === "none") return { position: "relative" }
+
+        const base: CSSProperties = {
+            position: "sticky",
+            top: 0,
+            zIndex: 1000,
+            transition: transitionStyle,
+        }
+
+        if (scrollBehavior === "hide") {
+            return {
+                ...base,
+                transform: hasScrolled ? "translateY(-100%)" : "translateY(0)",
+                opacity: hasScrolled ? 0 : 1,
+            }
+        }
+
+        if (scrollBehavior === "showOnScrollUp") {
+            return {
+                ...base,
+                transform:
+                    hasScrolled && !isScrollingUp
+                        ? "translateY(-100%)"
+                        : "translateY(0)",
+                opacity: hasScrolled && !isScrollingUp ? 0 : 1,
+            }
+        }
+
+        return base
+    }
+
+    const getLogoWidth = () =>
+        scrollBehavior === "shrink" && hasScrolled ? logoWidth * 0.8 : logoWidth
+
+    const getContainerPadding = () => {
+        if (scrollBehavior === "shrink" && hasScrolled) {
+            const [vertical, horizontal] = containerPadding.split(" ")
+            const verticalValue = parseInt(vertical)
+            const horizontalValue = horizontal
+                ? parseInt(horizontal)
+                : verticalValue
+            return `${Math.max(4, verticalValue - 12)}px ${horizontalValue}px`
+        }
+        return containerPadding
+    }
+
+    const getContainerBackground = (): CSSProperties => {
+        if (useGlassEffect) {
+            return {
+                backgroundColor: "rgba(255, 255, 255, 0.2)",
+                backdropFilter: isSafari ? "blur(2px)" : `url(#${filterId})`,
+                WebkitBackdropFilter: isSafari
+                    ? "blur(2px)"
+                    : `url(#${filterId})`,
+            }
+        }
+        return { backgroundColor }
+    }
+
+    const lineSpacing = hamburgerSize === 16 ? 4 : hamburgerSize === 24 ? 5 : 6
+    const topLineOffset = -(lineSpacing + hamburgerLineWidth / 2)
+    const bottomLineOffset = lineSpacing + hamburgerLineWidth / 2
+
+    const hamburgerProps = {
+        isOpen,
+        toggleMenu,
+        hamburgerSize,
+        hamburgerLineWidth,
+        hamburgerColor,
+        topLineOffset,
+        bottomLineOffset,
+    }
+
+    const getDividerStyle = (): CSSProperties => {
+        if (!showDividers) return {}
+        const rgb = dividerColorMode === "light" ? "255, 255, 255" : "0, 0, 0"
+        return {
+            borderRight: `${dividerWidth}px solid rgba(${rgb}, ${dividerOpacity})`,
+        }
+    }
+
+    const getHorizontalDividerStyle = (): CSSProperties => {
+        if (!showDividers) return {}
+        const rgb = dividerColorMode === "light" ? "255, 255, 255" : "0, 0, 0"
+        return {
+            borderTop: `${dividerWidth}px solid rgba(${rgb}, ${dividerOpacity})`,
+            ...(useGlassEffect
+                ? {}
+                : { marginTop: "1px", marginBottom: "1px" }),
+        }
+    }
+
+    return (
+        <nav
+            style={{
+                ...getScrollStyles(),
+                width:
+                    isDesktop || isTablet ? "100%" : isOpen ? "100vw" : "100%",
+                ...getContainerBackground(),
+                overflow: "visible",
+            }}
+            onMouseLeave={handleMenuContainerLeave}
+            aria-label="Main navigation"
+            role="navigation"
+        >
+            {/* Glass Effect SVG Filter */}
+            {useGlassEffect && (
+                <svg
+                    style={{
+                        position: "absolute",
+                        width: 0,
+                        height: 0,
+                        pointerEvents: "none",
+                    }}
+                >
+                    <defs>
+                        <filter
+                            id={filterId}
+                            x="-50%"
+                            y="-50%"
+                            width="200%"
+                            height="200%"
+                        >
+                            <feTurbulence
+                                baseFrequency={0.001}
+                                numOctaves={1}
+                                type="turbulence"
+                                result="turbulence"
+                            />
+                            <feOffset
+                                in="SourceGraphic"
+                                dx={5}
+                                dy={0}
+                                result="redOffset"
+                            />
+                            <feColorMatrix
+                                in="redOffset"
+                                type="matrix"
+                                values="1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0"
+                                result="red"
+                            />
+                            <feColorMatrix
+                                in="SourceGraphic"
+                                type="matrix"
+                                values="0 0 0 0 0 0 1 0 0 0 0 0 0 0 0 0 0 0 1 0"
+                                result="green"
+                            />
+                            <feOffset
+                                in="SourceGraphic"
+                                dx={-5}
+                                dy={0}
+                                result="blueOffset"
+                            />
+                            <feColorMatrix
+                                in="blueOffset"
+                                type="matrix"
+                                values="0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 1 0"
+                                result="blue"
+                            />
+                            <feComposite
+                                in="red"
+                                in2="green"
+                                operator="arithmetic"
+                                k2="1"
+                                k3="1"
+                                result="redGreen"
+                            />
+                            <feComposite
+                                in="redGreen"
+                                in2="blue"
+                                operator="arithmetic"
+                                k2="1"
+                                k3="1"
+                                result="colorSplit"
+                            />
+                            <feDisplacementMap
+                                in="colorSplit"
+                                in2="turbulence"
+                                scale={50}
+                                result="displacement"
+                            />
+                            <feGaussianBlur
+                                in="displacement"
+                                stdDeviation={2}
+                                result="blurred"
+                            />
+                        </filter>
+                    </defs>
+                </svg>
+            )}
+
+            {/* Modal overlay */}
+            {isOpen && showHamburger && (
+                <div
+                    style={{
+                        position: "fixed",
+                        top: 0,
+                        left: 0,
+                        width: "100vw",
+                        height: "100vh",
+                        backgroundColor: `rgba(0, 0, 0, ${modalOverlayOpacity})`,
+                        backdropFilter: "blur(10px)",
+                        WebkitBackdropFilter: "blur(10px)",
+                        zIndex: 1,
+                        animation: "fadeIn 0.3s ease",
+                    }}
+                    onClick={toggleMenu}
+                    role="presentation"
+                    aria-hidden="true"
+                />
+            )}
+
+            {/* Header row: logo + hamburger */}
+            <div
+                style={{
+                    display: "flex",
+                    flexDirection: headerOrder,
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: getContainerPadding(),
+                    gap: isDesktop ? "48px" : "16px",
+                    transition: transitionStyle,
+                    position: "relative",
+                    zIndex: 10,
+                }}
+            >
+                {hamburgerPosition === "left" && showHamburger && (
+                    <HamburgerButton
+                        {...hamburgerProps}
+                        order={logoPosition === "center" ? 0 : 1}
+                    />
+                )}
+
+                {/* Logo */}
+                <div
+                    style={{
+                        display: "flex",
+                        justifyContent:
+                            scrollBehavior === "shrink" &&
+                            hasScrolled &&
+                            logoPosition === "center"
+                                ? "flex-start"
+                                : logoJustify,
+                        flex:
+                            logoPosition === "center" && showHamburger
+                                ? 1
+                                : "0 0 auto",
+                        order: logoPosition === "center" ? 1 : 0,
+                        transition: `justify-content ${animationDuration * 1.5}s linear`,
+                    }}
+                >
+                    <a
+                        href={logoLink || "/"}
+                        onClick={(e) => {
+                            e.preventDefault()
+                            navigate(logoLink)
+                        }}
+                        aria-label={`${logoImage.alt || "Home"} - Go to homepage`}
+                        style={{ cursor: "pointer" }}
+                    >
+                        <img
+                            {...logoImage}
+                            alt={logoImage.alt || "Company logo"}
+                            style={{
+                                width: `${getLogoWidth()}px`,
+                                height: "auto",
+                                objectFit: "contain",
+                                transition: transitionStyle,
+                            }}
+                        />
+                    </a>
+                </div>
+
+                {/* Desktop navigation */}
+                {!showHamburger && (
+                    <div
+                        id="main-navigation"
+                        style={{
+                            display: "flex",
+                            gap: "8px",
+                            flex: 1,
+                            justifyContent:
+                                logoPosition === "left"
+                                    ? "flex-end"
+                                    : "center",
+                            position: "relative",
+                        }}
+                        role="menubar"
+                        aria-label="Primary navigation menu"
+                    >
+                        <ul
+                            style={{
+                                display: "flex",
+                                gap: "8px",
+                                listStyle: "none",
+                                margin: 0,
+                                padding: 0,
+                            }}
+                        >
+                            {menuItems.map((item, index) => {
+                                const hasSubmenu =
+                                    item.hasSubmenu &&
+                                    item.submenuItems.length > 0
+                                const isHovered = hoveredPrimaryIndex === index
+                                const isLastItem =
+                                    index === menuItems.length - 1
+
+                                return (
+                                    <li
+                                        key={index}
+                                        style={{
+                                            position: "relative",
+                                            ...(showDividers && !isLastItem
+                                                ? getDividerStyle()
+                                                : {}),
+                                        }}
+                                        onMouseEnter={() => {
+                                            startTransition(() => {
+                                                if (hasSubmenu) {
+                                                    setActiveSubmenu(index)
+                                                } else {
+                                                    setHoveredPrimaryIndex(
+                                                        index
+                                                    )
+                                                }
+                                            })
+                                        }}
+                                        onMouseLeave={() => {
+                                            startTransition(() => {
+                                                setHoveredPrimaryIndex(null)
+                                                if (hasSubmenu)
+                                                    setActiveSubmenu(null)
+                                            })
+                                        }}
+                                    >
+                                        {hasSubmenu ? (
+                                            <button
+                                                style={{
+                                                    background: "transparent",
+                                                    border: "none",
+                                                    textDecoration: "none",
+                                                    cursor: "pointer",
+                                                    padding: primaryMenuPadding,
+                                                    color: primaryMenuColor,
+                                                    transition: transitionStyle,
+                                                    display: "inline-block",
+                                                    whiteSpace: "nowrap",
+                                                    borderRadius: "4px",
+                                                    outline: "none",
+                                                    ...primaryMenuFont,
+                                                }}
+                                                onFocus={() =>
+                                                    startTransition(() =>
+                                                        setFocusedPrimaryIndex(
+                                                            index
+                                                        )
+                                                    )
+                                                }
+                                                onBlur={() =>
+                                                    startTransition(() =>
+                                                        setFocusedPrimaryIndex(
+                                                            null
+                                                        )
+                                                    )
+                                                }
+                                                aria-expanded={
+                                                    activeSubmenu === index
+                                                }
+                                                aria-haspopup="menu"
+                                                aria-label={`${item.text} menu`}
+                                                role="menuitem"
+                                                tabIndex={0}
+                                            >
+                                                {item.text}
+                                                <svg
+                                                    width="12"
+                                                    height="12"
+                                                    viewBox="0 0 12 12"
+                                                    fill="none"
+                                                    style={{
+                                                        marginLeft: "6px",
+                                                        display: "inline-block",
+                                                        verticalAlign: "middle",
+                                                        transform:
+                                                            activeSubmenu ===
+                                                            index
+                                                                ? "rotate(180deg)"
+                                                                : "rotate(0deg)",
+                                                        transition: `transform ${animationDuration}s ${easingFunction}`,
+                                                    }}
+                                                    aria-hidden="true"
+                                                >
+                                                    <path
+                                                        d="M3 4.5L6 7.5L9 4.5"
+                                                        stroke="currentColor"
+                                                        strokeWidth="1.5"
+                                                        strokeLinecap="round"
+                                                        strokeLinejoin="round"
+                                                    />
+                                                </svg>
+                                            </button>
+                                        ) : (
+                                            <a
+                                                href={item.link || "#"}
+                                                onClick={(e) => {
+                                                    e.preventDefault()
+                                                    navigate(item.link)
+                                                }}
+                                                onFocus={() =>
+                                                    startTransition(() =>
+                                                        setFocusedPrimaryIndex(
+                                                            index
+                                                        )
+                                                    )
+                                                }
+                                                onBlur={() =>
+                                                    startTransition(() =>
+                                                        setFocusedPrimaryIndex(
+                                                            null
+                                                        )
+                                                    )
+                                                }
+                                                style={{
+                                                    textDecoration: "none",
+                                                    cursor: "pointer",
+                                                    padding: primaryMenuPadding,
+                                                    backgroundColor: isHovered
+                                                        ? primaryMenuHoverBackground
+                                                        : "transparent",
+                                                    color: isHovered
+                                                        ? primaryMenuHoverColor
+                                                        : primaryMenuColor,
+                                                    transition: transitionStyle,
+                                                    display: "inline-block",
+                                                    whiteSpace: "nowrap",
+                                                    borderRadius: "4px",
+                                                    outline: "none",
+                                                    ...primaryMenuFont,
+                                                }}
+                                                role="menuitem"
+                                                aria-label={item.text}
+                                                tabIndex={0}
+                                            >
+                                                {item.text}
+                                            </a>
+                                        )}
+
+                                        {/* Desktop dropdown submenu */}
+                                        {activeSubmenu === index &&
+                                            item.submenuItems.length > 0 && (
+                                                <ul
+                                                    style={{
+                                                        position: "absolute",
+                                                        top: "100%",
+                                                        left: 0,
+                                                        marginTop: "8px",
+                                                        backgroundColor:
+                                                            submenuBackground,
+                                                        borderRadius: "8px",
+                                                        overflow: "hidden",
+                                                        minWidth: "200px",
+                                                        zIndex: 1000,
+                                                        animation: `slideDown ${animationDuration}s ${easingFunction}`,
+                                                        listStyle: "none",
+                                                        margin: "8px 0 0 0",
+                                                        padding: 0,
+                                                    }}
+                                                    onMouseLeave={
+                                                        handleSubmenuLeave
+                                                    }
+                                                    role="menu"
+                                                    aria-label={`${item.text} submenu`}
+                                                >
+                                                    {item.submenuItems.map(
+                                                        (subItem, subIndex) => {
+                                                            const isLastSubmenuItem =
+                                                                subIndex ===
+                                                                item
+                                                                    .submenuItems
+                                                                    .length -
+                                                                    1
+                                                            return (
+                                                                <li
+                                                                    key={
+                                                                        subIndex
+                                                                    }
+                                                                    role="none"
+                                                                >
+                                                                    <a
+                                                                        href={
+                                                                            subItem.link ||
+                                                                            "#"
+                                                                        }
+                                                                        onClick={(
+                                                                            e
+                                                                        ) => {
+                                                                            e.preventDefault()
+                                                                            navigate(
+                                                                                subItem.link
+                                                                            )
+                                                                        }}
+                                                                        onMouseEnter={() =>
+                                                                            startTransition(
+                                                                                () =>
+                                                                                    setHoveredSubmenuIndex(
+                                                                                        subIndex
+                                                                                    )
+                                                                            )
+                                                                        }
+                                                                        onMouseLeave={() =>
+                                                                            startTransition(
+                                                                                () =>
+                                                                                    setHoveredSubmenuIndex(
+                                                                                        null
+                                                                                    )
+                                                                            )
+                                                                        }
+                                                                        onFocus={() =>
+                                                                            startTransition(
+                                                                                () =>
+                                                                                    setFocusedSubmenuIndex(
+                                                                                        subIndex
+                                                                                    )
+                                                                            )
+                                                                        }
+                                                                        onBlur={() =>
+                                                                            startTransition(
+                                                                                () =>
+                                                                                    setFocusedSubmenuIndex(
+                                                                                        null
+                                                                                    )
+                                                                            )
+                                                                        }
+                                                                        style={{
+                                                                            display:
+                                                                                "block",
+                                                                            textDecoration:
+                                                                                "none",
+                                                                            cursor: "pointer",
+                                                                            padding:
+                                                                                submenuPadding,
+                                                                            backgroundColor:
+                                                                                hoveredSubmenuIndex ===
+                                                                                subIndex
+                                                                                    ? submenuHoverBackground
+                                                                                    : submenuBackground,
+                                                                            color:
+                                                                                hoveredSubmenuIndex ===
+                                                                                subIndex
+                                                                                    ? submenuHoverColor
+                                                                                    : submenuColor,
+                                                                            transition:
+                                                                                transitionStyle,
+                                                                            whiteSpace:
+                                                                                "nowrap",
+                                                                            outline:
+                                                                                "none",
+                                                                            ...(showDividers &&
+                                                                            !isLastSubmenuItem
+                                                                                ? {
+                                                                                      borderBottom: `${dividerWidth}px solid rgba(${dividerColorMode === "light" ? "255, 255, 255" : "0, 0, 0"}, ${dividerOpacity})`,
+                                                                                  }
+                                                                                : {}),
+                                                                            ...submenuFont,
+                                                                        }}
+                                                                        role="menuitem"
+                                                                        tabIndex={
+                                                                            0
+                                                                        }
+                                                                    >
+                                                                        {
+                                                                            subItem.text
+                                                                        }
+                                                                    </a>
+                                                                </li>
+                                                            )
+                                                        }
+                                                    )}
+                                                </ul>
+                                            )}
+                                    </li>
+                                )
+                            })}
+                        </ul>
+                    </div>
+                )}
+
+                {hamburgerPosition === "right" && showHamburger && (
+                    <HamburgerButton {...hamburgerProps} order={2} />
+                )}
+            </div>
+
+            {/* Mobile / hamburger menu panel */}
+            {showMenu && showHamburger && (
+                <>
+                    {showDividers && (
+                        <div
+                            style={{
+                                width: "100%",
+                                ...getHorizontalDividerStyle(),
+                                position: "relative",
+                                zIndex: 5,
+                            }}
+                            aria-hidden="true"
+                        />
+                    )}
+
+                    <div
+                        id="main-navigation"
+                        style={{
+                            width: "100vw",
+                            display: "flex",
+                            flexDirection: "column",
+                            animation: `slideDown ${animationDuration}s ${easingFunction}`,
+                            position: "relative",
+                            zIndex: 10,
+                            marginTop: isMobile ? "100px" : "0",
+                        }}
+                        role="menubar"
+                        aria-label="Mobile navigation menu"
+                    >
+                        <ul
+                            style={{
+                                display: "flex",
+                                width: "100%",
+                                flexDirection: isMobile ? "column" : "row",
+                                listStyle: "none",
+                                margin: 0,
+                                padding: 0,
+                            }}
+                        >
+                            {menuItems.map((item, index) => {
+                                const isLastItem =
+                                    index === menuItems.length - 1
+                                const hasSubmenu =
+                                    item.hasSubmenu &&
+                                    item.submenuItems.length > 0
+
+                                return (
+                                    <li
+                                        key={index}
+                                        style={{
+                                            flex: isMobile ? "none" : 1,
+                                            ...(showDividers && !isLastItem
+                                                ? getDividerStyle()
+                                                : {}),
+                                        }}
+                                    >
+                                        {hasSubmenu ? (
+                                            <button
+                                                onClick={(e) => {
+                                                    e.preventDefault()
+                                                    handlePrimaryMenuClick(
+                                                        index
+                                                    )
+                                                }}
+                                                onMouseEnter={() =>
+                                                    startTransition(() =>
+                                                        setHoveredPrimaryIndex(
+                                                            index
+                                                        )
+                                                    )
+                                                }
+                                                onMouseLeave={() =>
+                                                    startTransition(() =>
+                                                        setHoveredPrimaryIndex(
+                                                            null
+                                                        )
+                                                    )
+                                                }
+                                                onFocus={() =>
+                                                    startTransition(() =>
+                                                        setFocusedPrimaryIndex(
+                                                            index
+                                                        )
+                                                    )
+                                                }
+                                                onBlur={() =>
+                                                    startTransition(() =>
+                                                        setFocusedPrimaryIndex(
+                                                            null
+                                                        )
+                                                    )
+                                                }
+                                                style={{
+                                                    width: "100%",
+                                                    border: "none",
+                                                    textDecoration: "none",
+                                                    cursor: "pointer",
+                                                    padding: primaryMenuPadding,
+                                                    backgroundColor:
+                                                        hoveredPrimaryIndex ===
+                                                        index
+                                                            ? primaryMenuHoverBackground
+                                                            : primaryMenuBackground,
+                                                    color:
+                                                        hoveredPrimaryIndex ===
+                                                        index
+                                                            ? primaryMenuHoverColor
+                                                            : primaryMenuColor,
+                                                    textAlign: "center",
+                                                    transition: transitionStyle,
+                                                    outline: "none",
+                                                    ...primaryMenuFont,
+                                                }}
+                                                aria-expanded={
+                                                    activeSubmenu === index
+                                                }
+                                                aria-haspopup="menu"
+                                                aria-label={`${item.text} menu`}
+                                                role="menuitem"
+                                                tabIndex={0}
+                                            >
+                                                {item.text}
+                                                <svg
+                                                    width="12"
+                                                    height="12"
+                                                    viewBox="0 0 12 12"
+                                                    fill="none"
+                                                    style={{
+                                                        marginLeft: "6px",
+                                                        display: "inline-block",
+                                                        verticalAlign: "middle",
+                                                        transform:
+                                                            activeSubmenu ===
+                                                            index
+                                                                ? "rotate(180deg)"
+                                                                : "rotate(0deg)",
+                                                        transition: `transform ${animationDuration}s ${easingFunction}`,
+                                                    }}
+                                                    aria-hidden="true"
+                                                >
+                                                    <path
+                                                        d="M3 4.5L6 7.5L9 4.5"
+                                                        stroke="currentColor"
+                                                        strokeWidth="1.5"
+                                                        strokeLinecap="round"
+                                                        strokeLinejoin="round"
+                                                    />
+                                                </svg>
+                                            </button>
+                                        ) : (
+                                            <a
+                                                href={item.link || "#"}
+                                                onClick={(e) => {
+                                                    e.preventDefault()
+                                                    handlePrimaryMenuClick(
+                                                        index
+                                                    )
+                                                }}
+                                                onMouseEnter={() =>
+                                                    startTransition(() =>
+                                                        setHoveredPrimaryIndex(
+                                                            index
+                                                        )
+                                                    )
+                                                }
+                                                onMouseLeave={() =>
+                                                    startTransition(() =>
+                                                        setHoveredPrimaryIndex(
+                                                            null
+                                                        )
+                                                    )
+                                                }
+                                                onFocus={() =>
+                                                    startTransition(() =>
+                                                        setFocusedPrimaryIndex(
+                                                            index
+                                                        )
+                                                    )
+                                                }
+                                                onBlur={() =>
+                                                    startTransition(() =>
+                                                        setFocusedPrimaryIndex(
+                                                            null
+                                                        )
+                                                    )
+                                                }
+                                                style={{
+                                                    display: "block",
+                                                    textDecoration: "none",
+                                                    cursor: "pointer",
+                                                    padding: primaryMenuPadding,
+                                                    backgroundColor:
+                                                        hoveredPrimaryIndex ===
+                                                        index
+                                                            ? primaryMenuHoverBackground
+                                                            : primaryMenuBackground,
+                                                    color:
+                                                        hoveredPrimaryIndex ===
+                                                        index
+                                                            ? primaryMenuHoverColor
+                                                            : primaryMenuColor,
+                                                    textAlign: "center",
+                                                    transition: transitionStyle,
+                                                    outline: "none",
+                                                    ...primaryMenuFont,
+                                                }}
+                                                role="menuitem"
+                                                aria-label={item.text}
+                                                tabIndex={0}
+                                            >
+                                                {item.text}
+                                            </a>
+                                        )}
+                                    </li>
+                                )
+                            })}
+                        </ul>
+
+                        {showDividers && (
+                            <div
+                                style={{
+                                    width: "100%",
+                                    ...getHorizontalDividerStyle(),
+                                    position: "relative",
+                                    zIndex: 5,
+                                }}
+                                aria-hidden="true"
+                            />
+                        )}
+
+                        {/* Mobile submenu panel */}
+                        {hasAnySubmenu &&
+                            activeSubmenu !== null &&
+                            menuItems[activeSubmenu]?.submenuItems.length >
+                                0 && (
+                                <>
+                                    <ul
+                                        style={{
+                                            display: "flex",
+                                            width: "100%",
+                                            flexDirection: isMobile
+                                                ? "column"
+                                                : "row",
+                                            animation: `slideDown ${animationDuration}s ${easingFunction}`,
+                                            listStyle: "none",
+                                            margin: 0,
+                                            padding: 0,
+                                        }}
+                                        onMouseLeave={handleSubmenuLeave}
+                                        role="menu"
+                                        aria-label={`${menuItems[activeSubmenu].text} submenu`}
+                                    >
+                                        {menuItems[
+                                            activeSubmenu
+                                        ].submenuItems.map(
+                                            (subItem, subIndex) => {
+                                                const isLastSubmenuItem =
+                                                    subIndex ===
+                                                    menuItems[activeSubmenu]
+                                                        .submenuItems.length -
+                                                        1
+                                                return (
+                                                    <li
+                                                        key={subIndex}
+                                                        style={{
+                                                            flex: isMobile
+                                                                ? "none"
+                                                                : 1,
+                                                            ...(showDividers &&
+                                                            !isLastSubmenuItem
+                                                                ? getDividerStyle()
+                                                                : {}),
+                                                        }}
+                                                        role="none"
+                                                    >
+                                                        <a
+                                                            href={
+                                                                subItem.link ||
+                                                                "#"
+                                                            }
+                                                            onClick={(e) => {
+                                                                e.preventDefault()
+                                                                navigate(
+                                                                    subItem.link
+                                                                )
+                                                            }}
+                                                            onMouseEnter={() =>
+                                                                startTransition(
+                                                                    () =>
+                                                                        setHoveredSubmenuIndex(
+                                                                            subIndex
+                                                                        )
+                                                                )
+                                                            }
+                                                            onMouseLeave={() =>
+                                                                startTransition(
+                                                                    () =>
+                                                                        setHoveredSubmenuIndex(
+                                                                            null
+                                                                        )
+                                                                )
+                                                            }
+                                                            onFocus={() =>
+                                                                startTransition(
+                                                                    () =>
+                                                                        setFocusedSubmenuIndex(
+                                                                            subIndex
+                                                                        )
+                                                                )
+                                                            }
+                                                            onBlur={() =>
+                                                                startTransition(
+                                                                    () =>
+                                                                        setFocusedSubmenuIndex(
+                                                                            null
+                                                                        )
+                                                                )
+                                                            }
+                                                            style={{
+                                                                display:
+                                                                    "block",
+                                                                textDecoration:
+                                                                    "none",
+                                                                cursor: "pointer",
+                                                                padding:
+                                                                    submenuPadding,
+                                                                backgroundColor:
+                                                                    hoveredSubmenuIndex ===
+                                                                    subIndex
+                                                                        ? submenuHoverBackground
+                                                                        : submenuBackground,
+                                                                color:
+                                                                    hoveredSubmenuIndex ===
+                                                                    subIndex
+                                                                        ? submenuHoverColor
+                                                                        : submenuColor,
+                                                                textAlign:
+                                                                    "center",
+                                                                transition:
+                                                                    transitionStyle,
+                                                                outline: "none",
+                                                                ...submenuFont,
+                                                            }}
+                                                            role="menuitem"
+                                                            tabIndex={0}
+                                                        >
+                                                            {subItem.text}
+                                                        </a>
+                                                    </li>
+                                                )
+                                            }
+                                        )}
+                                    </ul>
+
+                                    {showDividers && (
+                                        <div
+                                            style={{
+                                                width: "100%",
+                                                ...getHorizontalDividerStyle(),
+                                                position: "relative",
+                                                zIndex: 5,
+                                            }}
+                                            aria-hidden="true"
+                                        />
+                                    )}
+                                </>
+                            )}
+                    </div>
+                </>
+            )}
+
+            <style>{`
+                @keyframes slideDown {
+                    from { opacity: 0; transform: translateY(-10px); }
+                    to   { opacity: 1; transform: translateY(0); }
+                }
+                @keyframes fadeIn {
+                    from { opacity: 0; }
+                    to   { opacity: 1; }
+                }
+            `}</style>
+        </nav>
+    )
+}
+
+addPropertyControls(MegaMenu, {
+    showHamburgerOnDesktop: {
+        type: ControlType.Boolean,
+        title: "Hamburger on Desktop",
+        description:
+            "Show hamburger menu on desktop screens instead of horizontal navigation",
+        defaultValue: false,
+        enabledTitle: "Show",
+        disabledTitle: "Hide",
+    },
+    scrollBehavior: {
+        type: ControlType.Enum,
+        title: "Scroll Behavior",
+        description: "Choose how the menu behaves when scrolling the page",
+        options: ["none", "hide", "showOnScrollUp", "sticky", "shrink"],
+        optionTitles: ["None", "Hide", "Show on Scroll Up", "Sticky", "Shrink"],
+        defaultValue: "none",
+    },
+    easingCurve: {
+        type: ControlType.Enum,
+        title: "Easing Curve",
+        description:
+            "Choose the animation easing curve for unique branded motion",
+        options: ["smooth", "bounce", "elastic", "sharp", "linear"],
+        optionTitles: ["Smooth", "Bounce", "Elastic", "Sharp", "Linear"],
+        defaultValue: "smooth",
+        displaySegmentedControl: false,
+    },
+    animationDuration: {
+        type: ControlType.Number,
+        title: "Animation Duration",
+        description: "Duration of animations in seconds",
+        defaultValue: 0.4,
+        min: 0.1,
+        max: 2,
+        step: 0.1,
+        unit: "s",
+        displayStepper: true,
+    },
+    logoImage: {
+        type: ControlType.ResponsiveImage,
+        title: "Logo Image",
+        description: "Upload your logo image",
+    },
+    logoLink: {
+        type: ControlType.Link,
+        title: "Logo Link",
+        description: "URL the logo should link to (typically homepage)",
+        defaultValue: "/",
+    },
+    logoWidth: {
+        type: ControlType.Number,
+        title: "Logo Width",
+        description: "Set the width of your logo in pixels",
+        defaultValue: 150,
+        min: 50,
+        max: 300,
+        step: 10,
+        unit: "px",
+        displayStepper: true,
+    },
+    logoPosition: {
+        type: ControlType.Enum,
+        title: "Logo Position",
+        description: "Position the logo on the left or center",
+        options: ["left", "center"],
+        optionTitles: ["Left", "Center"],
+        defaultValue: "left",
+        displaySegmentedControl: true,
+    },
+    hamburgerPosition: {
+        type: ControlType.Enum,
+        title: "Hamburger Position",
+        description: "Position the hamburger icon on the left or right",
+        options: ["left", "right"],
+        optionTitles: ["Left", "Right"],
+        defaultValue: "right",
+        displaySegmentedControl: true,
+    },
+    hamburgerColor: {
+        type: ControlType.Color,
+        title: "Hamburger Color",
+        description: "Color of the hamburger menu icon",
+        defaultValue: "#000000",
+    },
+    hamburgerSize: {
+        type: ControlType.Enum,
+        title: "Hamburger Size",
+        description: "Size of the hamburger menu icon",
+        options: [16, 24, 32],
+        optionTitles: ["Small", "Medium", "Large"],
+        defaultValue: 24,
+        displaySegmentedControl: true,
+    },
+    hamburgerLineWidth: {
+        type: ControlType.Enum,
+        title: "Hamburger Line Width",
+        description: "Thickness of the hamburger menu lines",
+        options: [1, 2],
+        optionTitles: ["Thin", "Thick"],
+        defaultValue: 2,
+        displaySegmentedControl: true,
+    },
+    backgroundColor: {
+        type: ControlType.Color,
+        title: "Background Color",
+        description: "Background color of the menu container",
+        defaultValue: "#FFFFFF",
+    },
+    useGlassEffect: {
+        type: ControlType.Boolean,
+        title: "Glass Effect",
+        description:
+            "Enable frosted glass effect with light refraction and chromatic aberration",
+        defaultValue: false,
+        enabledTitle: "On",
+        disabledTitle: "Off",
+    },
+    containerPadding: {
+        type: ControlType.Padding,
+        title: "Container Padding",
+        description: "Padding around the menu container",
+        defaultValue: "16px 48px",
+    },
+    showDividers: {
+        type: ControlType.Boolean,
+        title: "Menu Dividers",
+        description: "Show dividers between menu items",
+        defaultValue: false,
+        enabledTitle: "Show",
+        disabledTitle: "Hide",
+    },
+    dividerWidth: {
+        type: ControlType.Number,
+        title: "Divider Width",
+        description: "Width of the dividers in pixels",
+        defaultValue: 1,
+        min: 1,
+        max: 10,
+        step: 1,
+        unit: "px",
+        hidden: ({ showDividers }) => !showDividers,
+    },
+    dividerColorMode: {
+        type: ControlType.Enum,
+        title: "Divider Color",
+        description: "Choose light or dark divider color",
+        options: ["light", "dark"],
+        optionTitles: ["Light", "Dark"],
+        defaultValue: "light",
+        displaySegmentedControl: true,
+        hidden: ({ showDividers }) => !showDividers,
+    },
+    dividerOpacity: {
+        type: ControlType.Number,
+        title: "Divider Opacity",
+        description: "Opacity of the dividers (0 = transparent, 1 = opaque)",
+        defaultValue: 0.2,
+        min: 0,
+        max: 1,
+        step: 0.05,
+        hidden: ({ showDividers }) => !showDividers,
+    },
+    menuItems: {
+        type: ControlType.Array,
+        title: "Menu Items",
+        description: "Add and configure your menu items",
+        control: {
+            type: ControlType.Object,
+            controls: {
+                text: {
+                    type: ControlType.String,
+                    title: "Text",
+                    description: "Menu item text",
+                    defaultValue: "Menu Item",
+                },
+                link: {
+                    type: ControlType.Link,
+                    title: "Link",
+                    description: "Menu item URL",
+                },
+                hasSubmenu: {
+                    type: ControlType.Boolean,
+                    title: "Has Submenu",
+                    description: "Enable to add submenu items",
+                    defaultValue: false,
+                    enabledTitle: "Yes",
+                    disabledTitle: "No",
+                },
+                submenuItems: {
+                    type: ControlType.Array,
+                    title: "Submenu Items",
+                    description: "Add submenu items",
+                    hidden: (props) => props.hasSubmenu !== true,
+                    control: {
+                        type: ControlType.Object,
+                        controls: {
+                            text: {
+                                type: ControlType.String,
+                                title: "Text",
+                                description: "Submenu item text",
+                                defaultValue: "Submenu Item",
+                            },
+                            link: {
+                                type: ControlType.Link,
+                                title: "Link",
+                                description: "Submenu item URL",
+                            },
+                        },
+                    },
+                    defaultValue: [
+                        { text: "Submenu Item 1", link: "/submenu/1" },
+                        { text: "Submenu Item 2", link: "/submenu/2" },
+                    ],
+                },
+            },
+        },
+        defaultValue: [
+            {
+                text: "Products",
+                link: "/products",
+                hasSubmenu: true,
+                submenuItems: [
+                    { text: "Product 1", link: "/products/1" },
+                    { text: "Product 2", link: "/products/2" },
+                ],
+            },
+            {
+                text: "About",
+                link: "/about",
+                hasSubmenu: false,
+                submenuItems: [],
+            },
+            {
+                text: "Contact",
+                link: "/contact",
+                hasSubmenu: false,
+                submenuItems: [],
+            },
+        ],
+    },
+    primaryMenuFont: {
+        type: ControlType.Font,
+        title: "Primary Menu Font",
+        description: "Font settings for primary menu items",
+        controls: "extended",
+        defaultFontType: "sans-serif",
+        defaultValue: {
+            fontSize: "15px",
+            variant: "Medium",
+            letterSpacing: "-0.01em",
+            lineHeight: "1em",
+        },
+    },
+    primaryMenuBackground: {
+        type: ControlType.Color,
+        title: "Primary Menu Background",
+        description: "Background color of primary menu items",
+        defaultValue: "#EEEEEE",
+    },
+    primaryMenuHoverBackground: {
+        type: ControlType.Color,
+        title: "Primary Menu Hover Background",
+        description: "Background color when hovering over primary menu items",
+        defaultValue: "#000000",
+    },
+    primaryMenuColor: {
+        type: ControlType.Color,
+        title: "Primary Menu Color",
+        description: "Text color of primary menu items",
+        defaultValue: "#000000",
+    },
+    primaryMenuHoverColor: {
+        type: ControlType.Color,
+        title: "Primary Menu Hover Color",
+        description: "Text color when hovering over primary menu items",
+        defaultValue: "#FFFFFF",
+    },
+    primaryMenuPadding: {
+        type: ControlType.Padding,
+        title: "Primary Menu Padding",
+        description: "Padding around primary menu items",
+        defaultValue: "16px",
+    },
+    submenuFont: {
+        type: ControlType.Font,
+        title: "Submenu Font",
+        description: "Font settings for submenu items",
+        controls: "extended",
+        defaultFontType: "sans-serif",
+        defaultValue: {
+            fontSize: "15px",
+            variant: "Medium",
+            letterSpacing: "-0.01em",
+            lineHeight: "1em",
+        },
+    },
+    submenuBackground: {
+        type: ControlType.Color,
+        title: "Submenu Background",
+        description: "Background color of submenu items",
+        defaultValue: "#F5F5F5",
+    },
+    submenuHoverBackground: {
+        type: ControlType.Color,
+        title: "Submenu Hover Background",
+        description: "Background color when hovering over submenu items",
+        defaultValue: "#CCCCCC",
+    },
+    submenuColor: {
+        type: ControlType.Color,
+        title: "Submenu Color",
+        description: "Text color of submenu items",
+        defaultValue: "#000000",
+    },
+    submenuHoverColor: {
+        type: ControlType.Color,
+        title: "Submenu Hover Color",
+        description: "Text color when hovering over submenu items",
+        defaultValue: "#000000",
+    },
+    submenuPadding: {
+        type: ControlType.Padding,
+        title: "Submenu Padding",
+        description: "Padding around submenu items",
+        defaultValue: "16px",
+    },
+    modalOverlayOpacity: {
+        type: ControlType.Number,
+        title: "Modal Overlay Opacity",
+        description:
+            "Opacity of the modal overlay when menu is open (0 = transparent, 1 = opaque)",
+        defaultValue: 0.8,
+        min: 0,
+        max: 1,
+        step: 0.05,
+    },
+})
+
+MegaMenu.displayName = "Mega Menu"
